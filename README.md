@@ -98,6 +98,8 @@ Before you begin working with this project, ensure that you have the following p
 
 - **AWS Account with Bedrock Access**: You'll need an AWS account with access to the Bedrock service for AI foundation models used in both fraud detection and entity resolution. Visit the [AWS Console](https://aws.amazon.com/console/) to set up an account and request access to Bedrock.
 
+- **AWS Cognito User Pool**: For authentication, you'll need an AWS Cognito User Pool with Hosted UI configured. See the Authentication Setup section below for detailed instructions.
+
 - **Docker (Optional)**: For containerized deployment, Docker is required. Install it from the [Docker website](https://www.docker.com/get-started).
 
 ## Quick Start
@@ -171,6 +173,42 @@ mongodb+srv://<username>:<password>@cluster-name.xxxxx.mongodb.net/
 
 > [!Important]
 > Keep your AWS credentials secure and never commit them to version control.
+
+### Set up AWS Cognito Authentication
+
+1. Navigate to AWS Cognito in your AWS Console.
+
+2. Create a new User Pool:
+   - Click "Create user pool"
+   - Configure sign-in options (email recommended)
+   - Configure security requirements as needed
+   - Configure sign-up experience
+   - Configure message delivery (email)
+   - Integrate your app:
+     - App client name: `threatsight360-client`
+     - Enable "Generate client secret"
+     - Callback URLs: `http://localhost:3000/api/auth/callback`
+     - Sign out URLs: `http://localhost:3000`
+   - Review and create
+
+3. Configure Hosted UI:
+   - Go to "App integration" tab
+   - Under "App client list", select your app client
+   - Configure Hosted UI domain (e.g., `threatsight360-{random}.auth.{region}.amazoncognito.com`)
+
+4. Save the following for environment configuration:
+   - User Pool ID
+   - App Client ID
+   - App Client Secret
+   - Cognito Domain
+
+5. Generate a secure API key for backend authentication:
+   ```bash
+   openssl rand -base64 32
+   ```
+
+> [!Important]
+> Keep your Cognito credentials and API key secure. Never commit them to version control.
 
 ### Cloning the Github Repository
 
@@ -406,6 +444,9 @@ PORT=8000
 # Frontend URL for CORS
 FRONTEND_URL=http://localhost:3000
 
+# API Authentication
+API_KEY=your_secure_api_key_here
+
 # Risk Assessment Thresholds
 AMOUNT_THRESHOLD_MULTIPLIER=2.5
 MAX_LOCATION_DISTANCE_KM=100
@@ -462,6 +503,9 @@ PORT=8001
 # Frontend URL for CORS
 FRONTEND_URL=http://localhost:3000
 
+# API Authentication
+API_KEY=your_secure_api_key_here
+
 # Atlas Search Configuration
 ATLAS_SEARCH_INDEX=entity_resolution_search
 ATLAS_TEXT_SEARCH_INDEX=entity_text_search_index
@@ -512,6 +556,18 @@ NEXT_PUBLIC_AML_API_URL=http://localhost:8001
 
 # Legacy compatibility (points to fraud backend)
 NEXT_PUBLIC_API_URL=http://localhost:8000
+
+# NextAuth Configuration
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=generate_with_openssl_rand_base64_32
+
+# AWS Cognito Configuration
+COGNITO_CLIENT_ID=your_cognito_client_id
+COGNITO_CLIENT_SECRET=your_cognito_client_secret
+COGNITO_ISSUER=https://cognito-idp.{region}.amazonaws.com/{user_pool_id}
+
+# API Key for backend authentication (must match backend .env)
+API_KEY=your_secure_api_key_here
 ```
 
 > [!Note]

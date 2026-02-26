@@ -106,12 +106,12 @@ def get_embedding_model():
     if _embedding_model is None:
         # Check if we should use default credentials (SSO, IAM roles, etc.)
         use_sso = os.getenv("AWS_USE_SSO", "false").lower() in ("true", "1", "yes")
-        region_name = os.getenv("AWS_REGION", "eu-west-3")
+        region_name = os.getenv("AWS_REGION", "us-east-1")
 
         if use_sso:
             # Use default credential chain - don't pass explicit credentials
             _embedding_model = BedrockTitanEmbeddings(
-                model_id="arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/78hc25ft38p2",
+                model_id="amazon.titan-embed-text-v2:0",
                 region_name=region_name,
                 use_default_credentials=True
             )
@@ -121,7 +121,7 @@ def get_embedding_model():
             aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
 
             _embedding_model = BedrockTitanEmbeddings(
-                model_id="arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/78hc25ft38p2",
+                model_id="amazon.titan-embed-text-v2:0",
                 region_name=region_name,
                 aws_access_key=aws_access_key,
                 aws_secret_key=aws_secret_key

@@ -4,7 +4,7 @@
  */
 
 const AML_API_URL =
-  process.env.NEXT_PUBLIC_AML_API_URL ||
+  '/api/aml' ||
   'https://threatsight-aml.api.mongodb-industry-solutions.com';
 
 class AMLAPIError extends Error {

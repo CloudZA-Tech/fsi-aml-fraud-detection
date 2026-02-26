@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 import logging
 from datetime import datetime
+from middleware.auth import APIKeyMiddleware
 
 # Import organized routes with error handling
 import sys
@@ -88,6 +89,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add API Key authentication
+app.add_middleware(APIKeyMiddleware)
 
 @app.on_event("startup")
 async def startup_event():

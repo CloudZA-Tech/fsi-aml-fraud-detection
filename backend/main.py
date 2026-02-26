@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import os
 import logging
 from datetime import datetime
+from middleware.auth import APIKeyMiddleware
 
 # Import routes
 from routes.customer import router as customer_router
@@ -40,6 +41,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add API Key authentication
+app.add_middleware(APIKeyMiddleware)
 
 @app.get("/")
 async def root():

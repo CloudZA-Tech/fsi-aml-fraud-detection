@@ -2,3 +2,8 @@
 *.pyc
 aml-backend/.env
 /.cursor
+.venv
+parameters.json
+**accessKeys**
+.env
+**/__pycache__/**

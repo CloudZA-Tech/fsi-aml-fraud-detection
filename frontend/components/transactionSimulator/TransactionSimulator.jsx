@@ -145,7 +145,7 @@ function TransactionSimulator() {
     async function fetchInitialData() {
       try {
         setInitialLoading(true);
-        const amlApiUrl = process.env.NEXT_PUBLIC_AML_API_URL || 'https://threatsight-aml.api.mongodb-industry-solutions.com';
+        const amlApiUrl = '/api/aml' || 'https://threatsight-aml.api.mongodb-industry-solutions.com';
         
         // Convert page to skip for backend API
         const limit = 50; // Reduced from 100

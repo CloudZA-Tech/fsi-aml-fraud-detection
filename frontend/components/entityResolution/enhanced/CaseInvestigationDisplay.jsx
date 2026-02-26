@@ -385,7 +385,7 @@ function CaseReportTab({ investigation, workflowData }) {
       console.log('📋 Sending case data for PDF generation:', pdfRequestData);
       
       // Call backend PDF generation API
-      const amlApiUrl = process.env.NEXT_PUBLIC_AML_API_URL || 'https://threatsight-aml.api.mongodb-industry-solutions.com';
+      const amlApiUrl = '/api/aml' || 'https://threatsight-aml.api.mongodb-industry-solutions.com';
       const response = await fetch(`${amlApiUrl}/pdf/generate-case-report`, {
         method: 'POST',
         headers: {

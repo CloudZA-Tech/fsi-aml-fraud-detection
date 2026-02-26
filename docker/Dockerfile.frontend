@@ -7,6 +7,7 @@ ARG NEXT_PUBLIC_AML_API_URL
 # Set as environment variables for the build
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_AML_API_URL=$NEXT_PUBLIC_AML_API_URL
+ENV NODE_ENV=production
 
 WORKDIR /app
 COPY frontend/package*.json ./

@@ -28,6 +28,7 @@ export async function GET(request, { params }) {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'X-API-Key': process.env.API_KEY,
       },
     });
 
@@ -70,6 +71,7 @@ export async function POST(request, { params }) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-API-Key': process.env.API_KEY,
       },
       body: body ? JSON.stringify(body) : undefined,
     });
@@ -122,6 +124,7 @@ export async function PUT(request, { params }) {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'X-API-Key': process.env.API_KEY,
       },
       body: body ? JSON.stringify(body) : undefined,
     });
@@ -160,6 +163,7 @@ export async function DELETE(request, { params }) {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
+        'X-API-Key': process.env.API_KEY,
       },
     });
 

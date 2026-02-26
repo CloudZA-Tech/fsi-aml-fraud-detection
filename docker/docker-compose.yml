@@ -1,26 +1,66 @@
 services:
   threatsight-front:
     build:
-      context: .
-      no_cache: true
-      dockerfile: Dockerfile.frontend
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
+        - NEXT_PUBLIC_FRAUD_API_URL=http://localhost:8000
+        - NEXT_PUBLIC_AML_API_URL=http://localhost:8001
     image: threatsight-front:latest
     ports:
       - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Backend URLs (use container names in Docker)
+      - FRAUD_BACKEND_URL=http://threatsight-back:8000
+      - AML_BACKEND_URL=http://threatsight-aml-back:8001
+      # NextAuth Configuration
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=+w3qciQM5WjWShmoLno4acfloDJopFUh+eABWq/e0kU=
+      # AWS Cognito Configuration
+      - COGNITO_CLIENT_ID=58um13lkn3is7dpd4rqi0qctp7
+      - COGNITO_CLIENT_SECRET=1nk9agijthp4r6ir00itfaob6g6n55ip2fa0qd7tjtmg3rqe1rjq
+      - COGNITO_ISSUER=https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_jqedKh1zg
+      # API Key for backend authentication (must match backend .env)
+      - API_KEY=Ilrjnyz3E8P44SnwnF4uRtVuxl0iWgS5n71fL7D2fLo=
     restart: always
     container_name: threatsight-front
+    depends_on:
+      - threatsight-back
+      - threatsight-aml-back
 
   threatsight-back:
     build:
-      context: .
-      no_cache: true
+      context: ..
       dockerfile: Dockerfile.backend
     image: threatsight-back:latest
-    volumes:
-      - ~/.aws/credentials:/root/.aws/credentials:ro
-      - ~/.aws/config:/root/.aws/config:ro
-      - ~/.aws/sso/cache:/root/.aws/sso/cache:rw  # Only make cache writable
     ports:
       - "8000:8000"
+    env_file:
+      - ../.env
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - FRONTEND_URL=http://localhost:3000
+      - API_KEY=Ilrjnyz3E8P44SnwnF4uRtVuxl0iWgS5n71fL7D2fLo=
     restart: always
     container_name: threatsight-back
+
+  threatsight-aml-back:
+    build:
+      context: ..
+      dockerfile: Dockerfile.aml-backend
+    image: threatsight-aml-back:latest
+    ports:
+      - "8001:8001"
+    env_file:
+      - ../.env
+    environment:
+      - PORT=8001
+      - HOST=0.0.0.0
+      - FRONTEND_URL=http://localhost:3000
+      - API_KEY=Ilrjnyz3E8P44SnwnF4uRtVuxl0iWgS5n71fL7D2fLo=
+    restart: always
+    container_name: threatsight-aml-back

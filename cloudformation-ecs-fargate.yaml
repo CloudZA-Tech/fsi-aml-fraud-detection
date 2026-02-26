@@ -1,0 +1,652 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ThreatSight 360 - FSI Fraud Detection Platform on ECS Fargate'
+
+Parameters:
+  # MongoDB Configuration
+  MongoDBURI:
+    Type: String
+    Description: MongoDB Atlas connection string
+    NoEcho: true
+  
+  MongoDBName:
+    Type: String
+    Default: fsi-threatsight360
+    Description: MongoDB database name
+  
+  # AWS Bedrock Configuration
+  AWSBedrockAccessKey:
+    Type: String
+    Description: AWS Access Key for Bedrock
+    NoEcho: true
+  
+  AWSBedrockSecretKey:
+    Type: String
+    Description: AWS Secret Key for Bedrock
+    NoEcho: true
+  
+  AWSBedrockRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS region for Bedrock service
+  
+  # Authentication Configuration
+  APIKey:
+    Type: String
+    Description: API Key for backend authentication
+    NoEcho: true
+  
+  CognitoUserPoolId:
+    Type: String
+    Description: Cognito User Pool ID
+  
+  CognitoClientId:
+    Type: String
+    Description: Cognito App Client ID
+  
+  CognitoClientSecret:
+    Type: String
+    Description: Cognito App Client Secret
+    NoEcho: true
+  
+  NextAuthSecret:
+    Type: String
+    Description: NextAuth secret for session encryption
+    NoEcho: true
+  
+  # Docker Images
+  FrontendImage:
+    Type: String
+    Description: Docker image URI for frontend
+  
+  BackendImage:
+    Type: String
+    Description: Docker image URI for fraud detection backend
+  
+  AMLBackendImage:
+    Type: String
+    Description: Docker image URI for AML backend
+  
+  # Network Configuration - Use Existing VPC
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Existing VPC ID
+  
+  PublicSubnet1Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: First public subnet ID (must be in different AZ)
+  
+  PublicSubnet2Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: Second public subnet ID (must be in different AZ)
+  
+  # HTTPS Configuration
+  ACMCertificateArn:
+    Type: String
+    Description: ARN of ACM certificate for HTTPS (leave empty for HTTP only)
+    Default: ''
+  
+  BaseDomainName:
+    Type: String
+    Description: Base domain name (e.g., dev.cloudza.tech, leave empty for HTTP only)
+    Default: ''
+  
+  SubdomainPrefix:
+    Type: String
+    Description: Subdomain prefix for the application
+    Default: 'threatsight360'
+  
+  HostedZoneId:
+    Type: String
+    Description: Route53 Hosted Zone ID for base domain (leave empty to skip DNS record creation)
+    Default: ''
+
+Conditions:
+  UseHTTPS: !Not [!Equals [!Ref ACMCertificateArn, '']]
+  CreateDNSRecord: !And
+    - !Not [!Equals [!Ref HostedZoneId, '']]
+    - !Not [!Equals [!Ref BaseDomainName, '']]
+
+Resources:
+  # Route53 CNAME Record
+  CNAMERecord:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateDNSRecord
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub '${SubdomainPrefix}.${BaseDomainName}'
+      Type: CNAME
+      TTL: '300'
+      ResourceRecords:
+        - !GetAtt ApplicationLoadBalancer.DNSName
+  
+  # Security Groups
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB Security Group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: ThreatSight360-ALB-SG
+
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Tasks Security Group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 8001
+          ToPort: 8001
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: ThreatSight360-ECS-SG
+
+  # Application Load Balancer
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: ThreatSight360-ALB
+      Subnets:
+        - !Ref PublicSubnet1Id
+        - !Ref PublicSubnet2Id
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: ThreatSight360-ALB
+
+  # Target Groups
+  FrontendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: ThreatSight360-Frontend-TG
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /api/health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: 200
+
+  BackendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: ThreatSight360-Backend-TG
+      Port: 8000
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /docs
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  AMLBackendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: ThreatSight360-AML-TG
+      Port: 8001
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /docs
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  # ALB Listeners
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - !If
+          - UseHTTPS
+          - Type: redirect
+            RedirectConfig:
+              Protocol: HTTPS
+              Port: '443'
+              StatusCode: HTTP_301
+          - Type: forward
+            TargetGroupArn: !Ref FrontendTargetGroup
+  
+  HTTPSListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: UseHTTPS
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref ACMCertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref FrontendTargetGroup
+
+  BackendListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !If [UseHTTPS, !Ref HTTPSListener, !Ref HTTPListener]
+      Priority: 2
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /api/fraud/*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroup
+      Transforms:
+        - Type: url-rewrite
+          UrlRewriteConfig:
+            Rewrites:
+              - Regex: ^/api/fraud/(.*)
+                Replace: /$1
+
+  AMLBackendListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !If [UseHTTPS, !Ref HTTPSListener, !Ref HTTPListener]
+      Priority: 3
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /aml/*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref AMLBackendTargetGroup
+      Transforms:
+        - Type: url-rewrite
+          UrlRewriteConfig:
+            Rewrites:
+              - Regex: ^/aml/(.*)
+                Replace: /$1
+
+  # ECS Cluster
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: ThreatSight360-Cluster
+
+  # ECS Task Execution Role
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # ECS Task Role (for Bedrock access)
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource: '*'
+        - PolicyName: ECSExecAccess
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: '*'
+
+  # CloudWatch Log Groups
+  FrontendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/threatsight360-frontend
+      RetentionInDays: 7
+
+  BackendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/threatsight360-backend
+      RetentionInDays: 7
+
+  AMLBackendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/threatsight360-aml-backend
+      RetentionInDays: 7
+
+  # ECS Task Definitions
+  FrontendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: threatsight360-frontend
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: frontend
+          Image: !Ref FrontendImage
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          Environment:
+            - Name: NEXT_PUBLIC_FRAUD_API_URL
+              Value: !If
+                - UseHTTPS
+                - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}'
+                - !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+            - Name: NEXT_PUBLIC_AML_API_URL
+              Value: !If
+                - UseHTTPS
+                - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}/aml'
+                - !Sub 'http://${ApplicationLoadBalancer.DNSName}/aml'
+            - Name: NEXT_PUBLIC_API_URL
+              Value: !If
+                - UseHTTPS
+                - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}'
+                - !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+            - Name: AML_BACKEND_URL
+              Value: !If
+                - UseHTTPS
+                - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}/aml'
+                - !Sub 'http://${ApplicationLoadBalancer.DNSName}/aml'
+            - Name: FRAUD_BACKEND_URL
+              Value: !If
+                - UseHTTPS
+                - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}/api/fraud'
+                - !Sub 'http://${ApplicationLoadBalancer.DNSName}/api/fraud'
+            - Name: NEXTAUTH_URL
+              Value: !If
+                - UseHTTPS
+                - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}'
+                - !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+            - Name: NEXTAUTH_SECRET
+              Value: !Ref NextAuthSecret
+            - Name: COGNITO_CLIENT_ID
+              Value: !Ref CognitoClientId
+            - Name: COGNITO_CLIENT_SECRET
+              Value: !Ref CognitoClientSecret
+            - Name: COGNITO_ISSUER
+              Value: !Sub 'https://cognito-idp.${AWSBedrockRegion}.amazonaws.com/${CognitoUserPoolId}'
+            - Name: API_KEY
+              Value: !Ref APIKey
+            - Name: HOST
+              Value: !If
+                - UseHTTPS
+                - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}'
+                - !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref FrontendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  BackendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: threatsight360-backend
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: backend
+          Image: !Ref BackendImage
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+          Environment:
+            - Name: MONGODB_URI
+              Value: !Ref MongoDBURI
+            - Name: DB_NAME
+              Value: !Ref MongoDBName
+            - Name: AWS_ACCESS_KEY_ID
+              Value: !Ref AWSBedrockAccessKey
+            - Name: AWS_SECRET_ACCESS_KEY
+              Value: !Ref AWSBedrockSecretKey
+            - Name: AWS_REGION
+              Value: !Ref AWSBedrockRegion
+            - Name: HOST
+              Value: 0.0.0.0
+            - Name: PORT
+              Value: '8000'
+            - Name: FRONTEND_URL
+              Value: !If
+                - UseHTTPS
+                - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}'
+                - !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+            - Name: TRANSACTION_VECTOR_INDEX
+              Value: transaction_vector_index
+            - Name: API_KEY
+              Value: !Ref APIKey
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BackendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  AMLBackendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: threatsight360-aml-backend
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: aml-backend
+          Image: !Ref AMLBackendImage
+          PortMappings:
+            - ContainerPort: 8001
+              Protocol: tcp
+          Environment:
+            - Name: MONGODB_URI
+              Value: !Ref MongoDBURI
+            - Name: DB_NAME
+              Value: !Ref MongoDBName
+            - Name: AWS_ACCESS_KEY_ID
+              Value: !Ref AWSBedrockAccessKey
+            - Name: AWS_SECRET_ACCESS_KEY
+              Value: !Ref AWSBedrockSecretKey
+            - Name: AWS_REGION
+              Value: !Ref AWSBedrockRegion
+            - Name: HOST
+              Value: 0.0.0.0
+            - Name: PORT
+              Value: '8001'
+            - Name: FRONTEND_URL
+              Value: !If
+                - UseHTTPS
+                - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}'
+                - !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+            - Name: ATLAS_SEARCH_INDEX
+              Value: entity_resolution_search
+            - Name: ATLAS_TEXT_SEARCH_INDEX
+              Value: entity_text_search_index
+            - Name: ENTITY_VECTOR_INDEX
+              Value: entity_vector_search_index
+            - Name: ENTITY_IDENTIFIER_VECTOR_INDEX
+              Value: entity_identifier_vector_index
+            - Name: ENTITY_BEHAVIORAL_VECTOR_INDEX
+              Value: entity_behavioral_vector_index
+            - Name: ATLAS_SEARCH_TIMEOUT
+              Value: '30000'
+            - Name: MAX_SEARCH_RESULTS
+              Value: '1000'
+            - Name: VECTOR_SEARCH_LIMIT
+              Value: '100'
+            - Name: CONNECTION_POOL_SIZE
+              Value: '50'
+            - Name: API_KEY
+              Value: !Ref APIKey
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref AMLBackendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  # ECS Services
+  FrontendService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - HTTPListener
+    Properties:
+      ServiceName: threatsight360-frontend
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref FrontendTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      EnableExecuteCommand: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref PublicSubnet1Id
+            - !Ref PublicSubnet2Id
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+      LoadBalancers:
+        - ContainerName: frontend
+          ContainerPort: 8080
+          TargetGroupArn: !Ref FrontendTargetGroup
+
+  BackendService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - HTTPListener
+    Properties:
+      ServiceName: threatsight360-backend
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref BackendTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      EnableExecuteCommand: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref PublicSubnet1Id
+            - !Ref PublicSubnet2Id
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+      LoadBalancers:
+        - ContainerName: backend
+          ContainerPort: 8000
+          TargetGroupArn: !Ref BackendTargetGroup
+
+  AMLBackendService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - HTTPListener
+    Properties:
+      ServiceName: threatsight360-aml-backend
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref AMLBackendTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      EnableExecuteCommand: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref PublicSubnet1Id
+            - !Ref PublicSubnet2Id
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+      LoadBalancers:
+        - ContainerName: aml-backend
+          ContainerPort: 8001
+          TargetGroupArn: !Ref AMLBackendTargetGroup
+
+Outputs:
+  ApplicationURL:
+    Description: Application URL
+    Value: !If
+      - UseHTTPS
+      - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}'
+      - !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+  
+  LoadBalancerDNS:
+    Description: ALB DNS Name
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+  
+  FrontendURL:
+    Description: Frontend Application URL
+    Value: !If
+      - UseHTTPS
+      - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}'
+      - !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+  
+  BackendAPIURL:
+    Description: Fraud Detection Backend API URL
+    Value: !If
+      - UseHTTPS
+      - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}/docs'
+      - !Sub 'http://${ApplicationLoadBalancer.DNSName}/docs'
+  
+  AMLBackendAPIURL:
+    Description: AML Backend API URL
+    Value: !If
+      - UseHTTPS
+      - !Sub 'https://${SubdomainPrefix}.${BaseDomainName}/aml/docs'
+      - !Sub 'http://${ApplicationLoadBalancer.DNSName}/aml/docs'
+  
+  ECSClusterName:
+    Description: ECS Cluster Name
+    Value: !Ref ECSCluster

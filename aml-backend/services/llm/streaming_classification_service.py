@@ -13,6 +13,7 @@ import re
 import asyncio
 import time
 import logging
+import os
 from datetime import datetime
 from typing import Dict, Any, Optional, AsyncGenerator
 from bedrock.client import BedrockClient
@@ -34,13 +35,18 @@ class StreamingClassificationService:
     def __init__(self, bedrock_client: Optional[BedrockClient] = None):
         """Initialize streaming classification service"""
         self.bedrock_client = bedrock_client or BedrockClient()
+        
+        # Determine region prefix for inference profiles
+        aws_region = os.getenv('AWS_REGION', 'us-east-1')
+        region_prefix = 'eu' if aws_region.startswith('eu-') else 'us'
+        
         self.supported_models = {
-            'claude-sonnet-4': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u',
-            'claude-3.5-sonnet-v2': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u',
-            'claude-3-sonnet': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u',
-            'claude-3-haiku': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/w1qp69dyf4ml'
+            'claude-sonnet-4': f'{region_prefix}.anthropic.claude-sonnet-4-20250514-v1:0',
+            'claude-3.5-sonnet-v2': f'{region_prefix}.anthropic.claude-3-5-sonnet-20240620-v1:0',
+            'claude-3-sonnet': f'{region_prefix}.anthropic.claude-3-sonnet-20240229-v1:0',
+            'claude-3-haiku': f'{region_prefix}.anthropic.claude-3-haiku-20240307-v1:0'
         }
-        logger.info("StreamingClassificationService initialized for transparent AI classification")
+        logger.info(f"StreamingClassificationService initialized with region prefix: {region_prefix}")
     
     async def classify_entity_stream(self, workflow_data: Dict[str, Any], 
                                    model_preference: str = 'claude-sonnet-4',

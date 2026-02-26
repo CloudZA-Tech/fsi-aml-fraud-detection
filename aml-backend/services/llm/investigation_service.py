@@ -7,6 +7,7 @@ and generates basic LLM investigation summaries.
 
 import json
 import logging
+import os
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -26,7 +27,13 @@ class InvestigationService:
     def __init__(self, bedrock_client: Optional[BedrockClient] = None):
         """Initialize investigation service"""
         self.bedrock_client = bedrock_client or BedrockClient()
-        logger.info("InvestigationService initialized for simple case investigation")
+        
+        # Determine region prefix for inference profiles
+        aws_region = os.getenv('AWS_REGION', 'us-east-1')
+        region_prefix = 'eu' if aws_region.startswith('eu-') else 'us'
+        self.model_id = f'{region_prefix}.anthropic.claude-3-sonnet-20240229-v1:0'
+        
+        logger.info(f"InvestigationService initialized with model: {self.model_id}")
     
     async def create_case_investigation(self, workflow_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -291,7 +298,7 @@ Write in professional compliance language suitable for case documentation."""
             
             # Make API call
             response = bedrock_runtime.invoke_model(
-                modelId="arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u",
+                modelId=self.model_id,
                 body=json.dumps(request_body),
                 contentType="application/json"
             )
