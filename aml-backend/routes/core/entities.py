@@ -39,7 +39,7 @@ def get_entity_repository_dependency():
     return get_entity_repository()
 
 
-@router.get("/", response_model=EntityListResponse)
+@router.get("", response_model=EntityListResponse)
 async def get_entities(
     skip: int = Query(0, ge=0, description="Number of entities to skip"),
     limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE, description="Number of entities to return"),

@@ -3,7 +3,7 @@
  * Handles all API communications for entity onboarding and resolution workflows
  */
 
-const API_BASE_URL = '/api/aml' || 'https://threatsight-aml.api.mongodb-industry-solutions.com';
+const API_BASE_URL = '/api/aml';
 
 class EntityResolutionAPIError extends Error {
   constructor(message, status, details) {

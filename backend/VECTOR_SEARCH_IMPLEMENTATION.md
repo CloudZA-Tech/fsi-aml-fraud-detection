@@ -148,7 +148,7 @@ Key functions:
 const performVectorSearch = async (transactionDescription) => {
   setVectorSearchLoading(true);
   try {
-    const response = await axios.post(`${API_BASE_URL}/fraud-patterns/similar-search`, {
+    const response = await axios.post(`${amlApiUrl}/fraud-patterns/similar-search`, {
       text: transactionDescription
     });
     

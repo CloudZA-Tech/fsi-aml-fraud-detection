@@ -71,7 +71,7 @@ const MERCHANT_CATEGORIES = [
   { value: 'money_transfer', label: 'Money Transfer' }
 ];
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_BASE_URL = '/api/proxy/fraud';
 
 // Tab IDs for the results modal
 const TAB_VECTOR_SEARCH = 0;

@@ -22,7 +22,7 @@ import Code from '@leafygreen-ui/code';
 import { spacing } from '@leafygreen-ui/tokens';
 import { palette } from '@leafygreen-ui/palette';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
+const BACKEND_URL = '/api/proxy/fraud';
 
 // Helper functions for formatting change stream events
 const formatEventTime = () => {
@@ -246,10 +246,10 @@ const ModelAdminPanel = () => {
     // Otherwise, use the backend URL directly (for backwards compatibility)
     const getWebSocketUrl = () => {
       if (BACKEND_URL.startsWith('/')) {
-        // Using proxy route on same host/port: /api/fraud -> wss://same-host/ws/fraud
+        // Using proxy route on same host/port: /api/proxy/fraud or /api/fraud -> wss://same-host/ws/fraud
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host;  // This includes the port if non-standard
-        const wsPath = BACKEND_URL.replace('/api/fraud', '/ws/fraud');
+        const wsPath = BACKEND_URL.replace(/\/api\/(proxy\/)?fraud/, '/ws/fraud');
         return `${protocol}//${host}${wsPath}/models/change-stream`;
       } else {
         // Direct URL (local dev): http://localhost:8000 -> ws://localhost:8000

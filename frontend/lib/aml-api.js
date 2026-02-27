@@ -3,9 +3,7 @@
  * Handles communication with the AML backend (port 8001)
  */
 
-const AML_API_URL =
-  '/api/aml' ||
-  'https://threatsight-aml.api.mongodb-industry-solutions.com';
+const AML_API_URL = '/api/aml';
 
 class AMLAPIError extends Error {
   constructor(message, status, response) {
