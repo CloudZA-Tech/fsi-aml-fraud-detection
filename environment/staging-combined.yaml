@@ -15,6 +15,35 @@ env:
   AML_BACKEND_URL: http://localhost:8001
   # WebSocket proxy port
   WS_PROXY_PORT: '8081'
+  # NextAuth Configuration
+  NEXTAUTH_URL: https://threatsight360.dev.cloudza.tech
+  NEXTAUTH_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: fsi-fraud-detection-secrets
+        key: NEXTAUTH_SECRET
+  # AWS Cognito Configuration
+  COGNITO_CLIENT_ID:
+    valueFrom:
+      secretKeyRef:
+        name: fsi-fraud-detection-secrets
+        key: COGNITO_CLIENT_ID
+  COGNITO_CLIENT_SECRET:
+    valueFrom:
+      secretKeyRef:
+        name: fsi-fraud-detection-secrets
+        key: COGNITO_CLIENT_SECRET
+  COGNITO_ISSUER:
+    valueFrom:
+      secretKeyRef:
+        name: fsi-fraud-detection-secrets
+        key: COGNITO_ISSUER
+  # API Key for backend authentication
+  API_KEY:
+    valueFrom:
+      secretKeyRef:
+        name: fsi-fraud-detection-secrets
+        key: API_KEY
 
 # Sidecar containers (both backends)
 sidecarContainers:

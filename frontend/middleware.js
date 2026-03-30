@@ -4,9 +4,11 @@ import { getToken } from 'next-auth/jwt';
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
-  // allow next-auth endpoints and other static assets to pass through
+  // allow next-auth endpoints, health checks, and other static assets to pass through
   if (
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/auth/signin') ||
+    pathname === '/api/health' ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico' ||
     pathname.match(/\.(png|jpg|svg)$/)
@@ -22,9 +24,13 @@ export async function middleware(request) {
                 'token', token);
 
   if (!token) {
+    // Use NEXTAUTH_URL as base URL to avoid internal ECS IP in callback
+    const baseUrl = process.env.NEXTAUTH_URL || request.nextUrl.origin;
+    const callbackUrl = `${baseUrl}${pathname}${request.nextUrl.search}`;
+    
     // build signin url including callback so we return to the original page
-    const signInUrl = new URL('/api/auth/signin', request.url);
-    signInUrl.searchParams.set('callbackUrl', request.url);
+    const signInUrl = new URL('/auth/signin', baseUrl);
+    signInUrl.searchParams.set('callbackUrl', callbackUrl);
     console.debug('[middleware] no token, redirecting to', signInUrl.href);
     return NextResponse.redirect(signInUrl);
   }
@@ -33,5 +39,16 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.png|.*\\.jpg|.*\\.svg).*)'],
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - /api/auth/* (NextAuth routes)
+     * - /api/health (Health check endpoint)
+     * - /_next/static (static files)
+     * - /_next/image (image optimization)
+     * - /favicon.ico, /robots.txt (metadata files)
+     * - /*.png, /*.jpg, /*.svg (image files)
+     */
+    '/((?!api/auth|api/health|_next/static|_next/image|favicon.ico|robots.txt|.*\\.png|.*\\.jpg|.*\\.svg).*)',
+  ],
 };
